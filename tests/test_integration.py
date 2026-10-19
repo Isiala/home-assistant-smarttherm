@@ -30,6 +30,8 @@ async def setup_entry(hass):
 
 async def test_flow_masks_token_and_validates(hass):
     result=await hass.config_entries.flow.async_init(DOMAIN,context={'source':'user'})
+    assert result['type']=='menu'
+    result=await hass.config_entries.flow.async_configure(result['flow_id'],{'next_step_id':'token'})
     assert result['type']=='form'
     fields={str(key):value for key,value in result['data_schema'].schema.items()}
     assert fields['token'].config['type']=='password'
@@ -42,7 +44,9 @@ async def test_flow_masks_token_and_validates(hass):
 @pytest.mark.parametrize('error,expected',[(SmartThermAuthError('rejected'),'invalid_auth'),(SmartThermError('offline'),'cannot_connect')])
 async def test_flow_errors_do_not_expose_credentials(hass,error,expected):
     with patch(CLIENT+'.async_get_devices',side_effect=error):
-        result=await hass.config_entries.flow.async_init(DOMAIN,context={'source':'user'},data={'user_id':'1','token':TOKEN})
+        result=await hass.config_entries.flow.async_init(DOMAIN,context={'source':'user'})
+        result=await hass.config_entries.flow.async_configure(result['flow_id'],{'next_step_id':'token'})
+        result=await hass.config_entries.flow.async_configure(result['flow_id'],{'user_id':'1','token':TOKEN})
     assert result['errors']=={'base':expected}
     assert TOKEN not in str(result)
 
@@ -92,10 +96,69 @@ async def test_offline_does_not_write(hass):
 async def test_reauth_replaces_token(hass):
     entry=await setup_entry(hass)
     result=await hass.config_entries.flow.async_init(DOMAIN, context={'source':'reauth','entry_id':entry.entry_id},data=DATA)
-    assert result['step_id']=='reauth_confirm'
+    assert result['type']=='menu'
+    result=await hass.config_entries.flow.async_configure(result['flow_id'],{'next_step_id':'token'})
+    assert result['step_id']=='token'
     with patch(CLIENT+'.async_get_devices',return_value=DEVICES), patch.object(hass.config_entries,'async_reload',return_value=True):
         result=await hass.config_entries.flow.async_configure(result['flow_id'],{'token':'replacement-test-token'})
         await hass.async_block_till_done()
     assert result['type']=='abort'
     assert result['reason']=='reauth_successful'
     assert entry.data['token']=='replacement-test-token'
+
+
+async def test_login_discovers_id_and_never_stores_password(hass):
+    result=await hass.config_entries.flow.async_init(DOMAIN,context={'source':'user'})
+    result=await hass.config_entries.flow.async_configure(result['flow_id'],{'next_step_id':'login'})
+    assert result['step_id']=='login'
+    fields={str(key):value for key,value in result['data_schema'].schema.items()}
+    assert fields['password'].config['type']=='password'
+    with patch(CLIENT+'.async_login',return_value={'user_id':'1','token':TOKEN}) as login, patch(CLIENT+'.async_get_devices',return_value=DEVICES), patch('custom_components.smarttherm.async_setup_entry',return_value=True):
+        result=await hass.config_entries.flow.async_configure(result['flow_id'],{'email':'unit-test@example.invalid','password':'test-password-only'})
+    assert result['type']=='create_entry'
+    assert set(result['data'])=={'user_id','token','client_id'}
+    assert result['data']['user_id']=='1'
+    assert 'test-password-only' not in str(result)
+    assert 'unit-test@example.invalid' not in str(result)
+    assert login.await_count==1
+
+
+@pytest.mark.parametrize('source', ['reauth','reconfigure'])
+async def test_existing_account_can_sign_in_without_entering_id(hass, source):
+    entry=await setup_entry(hass)
+    result=await hass.config_entries.flow.async_init(DOMAIN, context={'source':source,'entry_id':entry.entry_id},data=DATA if source=='reauth' else None)
+    result=await hass.config_entries.flow.async_configure(result['flow_id'],{'next_step_id':'login'})
+    with patch(CLIENT+'.async_login',return_value={'user_id':'1','token':'replacement-test-token'}), patch(CLIENT+'.async_get_devices',return_value=DEVICES), patch.object(hass.config_entries,'async_reload',return_value=True):
+        result=await hass.config_entries.flow.async_configure(result['flow_id'],{'email':'unit-test@example.invalid','password':'test-password-only'})
+        await hass.async_block_till_done()
+    assert result['type']=='abort'
+    assert result['reason']==('reauth_successful' if source=='reauth' else 'reconfigure_successful')
+    assert entry.data=={**DATA,'token':'replacement-test-token'}
+    assert 'test-password-only' not in str(entry.data)
+
+
+async def test_different_login_cannot_replace_account(hass):
+    entry=await setup_entry(hass)
+    result=await hass.config_entries.flow.async_init(DOMAIN,context={'source':'reauth','entry_id':entry.entry_id},data=DATA)
+    result=await hass.config_entries.flow.async_configure(result['flow_id'],{'next_step_id':'login'})
+    with patch(CLIENT+'.async_login',return_value={'user_id':'2','token':'other-test-token'}), patch(CLIENT+'.async_get_devices') as read:
+        result=await hass.config_entries.flow.async_configure(result['flow_id'],{'email':'other@example.invalid','password':'other-test-password'})
+    assert result['errors']=={'base':'wrong_account'}
+    assert entry.data==DATA
+    read.assert_not_awaited()
+    assert 'other-test-password' not in str(result)
+
+
+async def test_login_errors_do_not_echo_credentials(hass):
+    result=await hass.config_entries.flow.async_init(DOMAIN,context={'source':'user'})
+    result=await hass.config_entries.flow.async_configure(result['flow_id'],{'next_step_id':'login'})
+    with patch(CLIENT+'.async_login',side_effect=SmartThermAuthError('rejected')):
+        result=await hass.config_entries.flow.async_configure(result['flow_id'],{'email':'unit-test@example.invalid','password':'test-password-only'})
+    assert result['errors']=={'base':'invalid_auth'}
+    assert 'test-password-only' not in str(result)
+
+
+async def test_existing_token_entries_still_load_unchanged(hass):
+    entry=await setup_entry(hass)
+    assert entry.data==DATA
+    assert entry.unique_id=='1'

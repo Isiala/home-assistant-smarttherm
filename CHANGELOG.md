@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0
+
+- Add email/password setup that discovers the account ID and token automatically.
+- Use email/password or an existing token for reauthentication and reconfiguration.
+- Save only account ID, token, and client ID; never persist the password/email.
+- Reject reauthentication with a different account to preserve existing entities.
+- Keep all existing token-based installations compatible without migration.
+- Expand the test suite to cover login payloads, failed authentication, password
+  handling, token replacement, and account identity checks.
+
 ## 0.1.0
 
 - Token-based setup with account discovery for OCSTAT thermostat models 08 and 09.

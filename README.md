@@ -10,7 +10,7 @@ This is a community reverse-engineered integration, not an official OCSTAT produ
 2. Add `https://github.com/Isiala/home-assistant-smarttherm` with type **Integration**.
 3. Download **SmartTherm (OCSTAT)** and restart Home Assistant.
 4. Open **Settings → Devices & services → Add integration → SmartTherm (OCSTAT)**.
-5. Enter your numeric account user ID and existing token.
+5. Choose **Sign in with email and password** and enter the credentials used in the SmartTherm app. The account ID and token are discovered automatically.
 
 This is a HACS custom repository; it has not been submitted to the default HACS
 catalog. Branding validation is skipped while no separate Home Assistant Brands
@@ -24,9 +24,12 @@ submission exists.
    path must be `/config/custom_components/smarttherm/manifest.json`.
 2. Restart Home Assistant.
 3. Open **Settings → Devices & services → Add integration → SmartTherm (OCSTAT)**.
-4. Enter your numeric **account user ID** and **login token** in the setup form.
-   The account ID is required by the cloud API; it is not your email address or
-   a thermostat's device ID. No device identifiers need to be entered.
+4. Choose **Sign in with email and password** and enter the email/login name and
+   password used in the SmartTherm app. The integration obtains the account ID
+   and token automatically. No numeric ID or device identifiers need to be entered.
+
+If you already have a token, choose **Use an existing account ID and token**
+instead. That alternative accepts the numeric account ID and token as before.
 
 The integration automatically discovers supported thermostats. It is independent
 of macOS, Keychain, packet captures, proxies, and the phone once a valid token is
@@ -46,8 +49,11 @@ not yet been tested.
 - **Heat / manual:** use a fixed target (app mode 5).
 - **Override:** app mode 1. Changing the temperature while in Auto selects this
   override, matching the app. Its exact duration has not been verified.
-- Updating an expired token through Home Assistant's reauthentication prompt.
-  You can also select **Reconfigure** on the integration to replace a token.
+- Email/password setup retrieves the account ID and token automatically.
+- Existing account ID/token setup remains available.
+- An expired session triggers Home Assistant's reauthentication prompt. Sign in
+  again or supply a replacement token. **Reconfigure** also offers both methods.
+- Existing installations retain their account and entity IDs after updating.
 - New supported devices are added on subsequent updates; missing/offline devices
   become unavailable.
 
@@ -83,15 +89,20 @@ data:
 
 **No real account token, user ID, device ID, password, packet capture, or Mac
 Keychain export is included in this repository or its releases.** Enter your own credentials only in the
-Home Assistant form. The token field is masked. This integration does not log
-request payloads, raw server messages, credentials, or full API responses, and
-has no diagnostics export containing config entries.
+Home Assistant form. Password and token fields are masked. Login credentials
+are sent to the manufacturer's fixed HTTPS endpoint with redirect following
+disabled. The password and email are used only for that sign-in attempt: they
+are not saved in the integration's config entry. Only the resulting account ID,
+token, and generated client ID are saved. This integration does not log request
+payloads, raw server messages, credentials, or full API responses, and has no
+diagnostics export containing config entries.
 
 Home Assistant stores integration credentials in its local `.storage` config
 entry files, like other token-based integrations. Masking the UI is not encryption
 of those files. Protect the HA configuration directory and its backups; do not
 commit them. Token expiry is controlled by OCSTAT. Automatic token refresh is
-not available, so a replacement must be supplied if the saved token is rejected.
+not available because passwords are not retained. If the saved token is rejected,
+use the Home Assistant reauthentication form to sign in again or supply a new token.
 
 ## Verification and limitations
 
@@ -99,6 +110,9 @@ The independent async API read path was verified against real thermostats using
 credentials in memory. No live readings or account details are included in the repository. Setup,
 climate entities, reauthentication, unload, API errors, redirect handling, and
 control requests have automated tests using synthetic credentials/devices.
+The email/password exchange is based on the manufacturer's app login operation;
+its successful and rejected responses are covered by mocked API tests. A live
+email/password login has not yet been verified with supplied account credentials.
 
 Actual thermostat writes have not been tested live. The control endpoint, modes,
 and temperature units were traced from the manufacturer's app. A control sends

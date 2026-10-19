@@ -90,12 +90,14 @@ class SmartThermClient:
         self._client_id = client_id
 
     async def _post(self, operation: str, extra: dict[str, str], *, write: bool = False) -> dict:
-        if operation not in ("getDeviceListNew", "setThermostatWorkModeNew"):
+        if operation not in ("login", "getDeviceListNew", "setThermostatWorkModeNew"):
             raise SmartThermError("Unsupported operation")
         if write != (operation == "setThermostatWorkModeNew"):
             raise SmartThermError("Invalid operation type")
-        params = {"token": self._token, "user_id": self._user_id,
-                  "userid_phoneid": self._user_id.zfill(7) + self._client_id, **extra}
+        params = extra if operation == "login" else {
+            "token": self._token, "user_id": self._user_id,
+            "userid_phoneid": self._user_id.zfill(7) + self._client_id, **extra,
+        }
         try:
             async with self._session.post(
                 BASE_URL + operation, data=params, allow_redirects=False,
@@ -124,8 +126,28 @@ class SmartThermClient:
         if str(data.get("error_code")) == "4":
             raise SmartThermAuthError("SmartTherm token was rejected; supply a valid token")
         if data.get("statu") is False or data.get("status") is False:
+            if operation == "login":
+                raise SmartThermAuthError("SmartTherm rejected the login")
             raise SmartThermError("SmartTherm rejected the request")
         return data
+
+    @staticmethod
+    async def async_login(session: aiohttp.ClientSession, email: str, password: str) -> dict[str, str]:
+        """Exchange login credentials for an ID/token without retaining the password."""
+        if not isinstance(email, str) or not email.strip() or not isinstance(password, str) or not password:
+            raise SmartThermAuthError("An email/login and password are required")
+        client = SmartThermClient(session, "", "", "")
+        data = await client._post("login", {"email": email.strip(), "password": password})
+        user = data.get("user")
+        if not isinstance(user, dict):
+            raise SmartThermAuthError("Login did not return a valid session")
+        user_id = str(user.get("id", ""))
+        token = user.get("token")
+        if (not user_id.isascii() or not user_id.isdigit() or not 1 <= len(user_id) <= 7
+                or not isinstance(token, str) or not token.strip()):
+            raise SmartThermAuthError("Login did not return a valid session")
+        # Never return the raw account object: it can contain a password/email.
+        return {"user_id": str(int(user_id)), "token": token.strip()}
 
     async def async_get_devices(self) -> dict[str, Thermostat]:
         result: dict[str, Thermostat] = {}

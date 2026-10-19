@@ -57,3 +57,33 @@ async def test_uncertain_write_not_retried(hass,aioclient_mock):
     client=SmartThermClient(async_get_clientsession(hass),'1','fake-token','test-client')
     with pytest.raises(SmartThermWriteUnknown):await client.async_set_target(parse_thermostat(ROW),'5',13.5)
     assert aioclient_mock.call_count==1
+
+
+async def test_login_returns_only_id_and_token(hass,aioclient_mock):
+    aioclient_mock.post(BASE_URL+'login',json={'statu':True,'user':{'id':1,'token':'login-test-token','password':'server-password-not-to-save','email':'unit-test@example.invalid'}})
+    result=await SmartThermClient.async_login(async_get_clientsession(hass),' unit-test@example.invalid ',' password with spaces ')
+    assert result=={'user_id':'1','token':'login-test-token'}
+    request=aioclient_mock.mock_calls[0][2]
+    assert request=={'email':'unit-test@example.invalid','password':' password with spaces '}
+    assert aioclient_mock.call_count==1
+
+
+@pytest.mark.parametrize('response', [
+    {'statu':False,'error_code':2,'message':'untrusted-server-text'},
+    {'statu':True,'user':{}},
+    {'statu':True,'user':{'id':False,'token':'t'}},
+    {'statu':True,'user':{'id':'1','token':''}},
+])
+async def test_login_rejection_and_incomplete_sessions(hass,aioclient_mock,response):
+    aioclient_mock.post(BASE_URL+'login',json=response)
+    with pytest.raises(SmartThermAuthError) as exc:
+        await SmartThermClient.async_login(async_get_clientsession(hass),'unit-test@example.invalid','test-password-only')
+    assert 'untrusted-server-text' not in str(exc.value)
+    assert 'test-password-only' not in str(exc.value)
+
+
+async def test_login_redirect_does_not_forward_password(hass,aioclient_mock):
+    aioclient_mock.post(BASE_URL+'login',status=302,headers={'Location':'https://example.invalid/'})
+    with pytest.raises(SmartThermError):
+        await SmartThermClient.async_login(async_get_clientsession(hass),'unit-test@example.invalid','test-password-only')
+    assert aioclient_mock.call_count==1
