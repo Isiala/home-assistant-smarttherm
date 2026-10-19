@@ -1,0 +1,3 @@
+pytest-homeassistant-custom-component==0.13.289
+# Avoid the incompatible pycares 5 API with this HA test release's aiodns.
+pycares<5

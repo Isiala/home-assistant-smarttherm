@@ -1,0 +1,39 @@
+{
+  "title": "SmartTherm (OCSTAT)",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect SmartTherm",
+        "description": "Enter your SmartTherm account user ID and existing token. The token is stored locally by Home Assistant. Use the numeric account ID, not an email address.",
+        "data": {
+          "user_id": "Account user ID",
+          "token": "Login token"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Replace SmartTherm token",
+        "description": "The existing token was rejected. Enter a valid token for this account.",
+        "data": {
+          "token": "Login token"
+        }
+      },
+      "reconfigure": {
+        "title": "Replace SmartTherm token",
+        "description": "Enter a replacement token for this account.",
+        "data": {
+          "token": "Login token"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "The account ID or token is invalid or expired.",
+      "cannot_connect": "Unable to connect to SmartTherm. Try again later.",
+      "no_devices": "No supported online thermostats (models 08/09) were found."
+    },
+    "abort": {
+      "already_configured": "This SmartTherm account is already configured.",
+      "reauth_successful": "Authentication updated successfully.",
+      "reconfigure_successful": "Configuration updated successfully."
+    }
+  }
+}
