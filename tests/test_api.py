@@ -29,6 +29,17 @@ async def test_read_and_parse(hass,aioclient_mock):
     assert device.heating is True
     assert '000000000000' not in repr(device)
 
+async def test_model_53_identifier(hass,aioclient_mock):
+    row={**ROW,'device_id':'&ABCD123E456','device_type':'53'}
+    aioclient_mock.post(BASE_URL+'getDeviceListNew',json={'devices':[row]})
+    client=SmartThermClient(async_get_clientsession(hass),'1','fake-token','test-client')
+    devices=await client.async_get_devices()
+    assert devices['&ABCD123E456'].model=='53'
+
+@pytest.mark.parametrize('identifier',['','12345 678901','ab\tc','x'*33,'caf\u00e9'])
+def test_invalid_identifier(identifier):
+    with pytest.raises(SmartThermError):parse_thermostat({**ROW,'device_id':identifier})
+
 async def test_expired_token(hass,aioclient_mock):
     aioclient_mock.post(BASE_URL+'getDeviceListNew',json={'statu':False,'error_code':4,'message':'sensitive-server-text'})
     client=SmartThermClient(async_get_clientsession(hass),'1','fake-token','test-client')
@@ -51,6 +62,14 @@ async def test_control_payload_and_only_one_write(hass,aioclient_mock):
     assert request['device_id']==ROW['device_id']
     assert 4100 <= int(request['messageId'],16) < 32767
     assert aioclient_mock.call_count==1
+
+async def test_model_53_control_payload(hass,aioclient_mock):
+    aioclient_mock.post(BASE_URL+'setThermostatWorkModeNew',json={'statu':True})
+    client=SmartThermClient(async_get_clientsession(hass),'1','fake-token','test-client')
+    await client.async_set_target(parse_thermostat({**ROW,'device_id':'&ABCD123E456','device_type':'53'}),'5',21.5)
+    request=aioclient_mock.mock_calls[0][2]
+    assert request['device_id']=='&ABCD123E456'
+    assert request['current_temprature']=='215'
 
 async def test_uncertain_write_not_retried(hass,aioclient_mock):
     aioclient_mock.post(BASE_URL+'setThermostatWorkModeNew',exc=asyncio.TimeoutError)

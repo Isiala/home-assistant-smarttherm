@@ -1,7 +1,8 @@
 # SmartTherm (OCSTAT) for Home Assistant
 
 Custom integration for the OCSTAT SmartTherm cloud used by the iPhone app
-`com.zhongjin.Thermostat`. Supports the tested thermostat families **08 and 09**.
+`com.zhongjin.Thermostat`. Supports the tested thermostat families **08, 09 and 53**
+(53 includes the Delta ST2602WIFIRF-5G sold in Hungary).
 This is a community reverse-engineered integration, not an official OCSTAT product.
 
 ## Install with HACS

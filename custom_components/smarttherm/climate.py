@@ -1,4 +1,4 @@
-"""Climate entities for OCSTAT SmartTherm device families 08 and 09."""
+"""Climate entities for OCSTAT SmartTherm device families 08, 09 and 53."""
 from __future__ import annotations
 
 from homeassistant.components.climate import ClimateEntity, ClimateEntityFeature, HVACAction, HVACMode

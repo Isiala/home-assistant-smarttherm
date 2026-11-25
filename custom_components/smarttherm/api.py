@@ -68,7 +68,10 @@ def _temperature(value: object) -> float | None:
 
 def parse_thermostat(value: dict) -> Thermostat:
     identifier = str(value.get("device_id", ""))
-    if len(identifier) != 12 or not identifier.isascii() or not identifier.isdigit():
+    # Families 08/09 use 12 digits; family 53 (e.g. Delta ST2602WIFIRF-5G) uses
+    # identifiers such as "&ABCD123E456", so accept any printable ASCII token.
+    if (not 1 <= len(identifier) <= 32 or not identifier.isascii() or not identifier.isprintable()
+            or any(c.isspace() for c in identifier)):
         raise SmartThermError("Invalid device identifier in cloud response")
     state = str(value.get("th_work", ""))
     return Thermostat(
