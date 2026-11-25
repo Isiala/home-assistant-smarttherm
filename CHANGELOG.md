@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Support thermostat family 53 (e.g. Delta ST2602WIFIRF-5G), whose device
+  identifiers are not 12-digit numbers (for example `&ABCD123E456`).
+
 ## 0.2.0
 
 - Add email/password setup that discovers the account ID and token automatically.
